@@ -3,26 +3,23 @@ from openerp.exceptions import ValidationError
 
 
 class ProductConfigSession(models.Model):
-    _inherit = 'product.config.session'
+    _inherit = "product.config.session"
 
     # Exclude subconfigurable products from standalone configuration
     product_tmpl_id = fields.Many2one(
-        domain=[
-            ('config_ok', '=', True),
-            ('master_template', '=', True)
-        ]
+        domain=[("config_ok", "=", True), ("master_template", "=", True)]
     )
     parent_id = fields.Many2one(
-        comodel_name='product.config.session',
+        comodel_name="product.config.session",
         readonly=True,
-        ondelete='cascade',
-        string='Parent Session'
+        ondelete="cascade",
+        string="Parent Session",
     )
     child_ids = fields.One2many(
-        comodel_name='product.config.session',
-        inverse_name='parent_id',
-        string='Session Lines',
-        help='Child configuration sessions'
+        comodel_name="product.config.session",
+        inverse_name="parent_id",
+        string="Session Lines",
+        help="Child configuration sessions",
     )
 
     @api.model
@@ -34,10 +31,10 @@ class ProductConfigSession(models.Model):
         cfg_step_lines = self.product_tmpl_id.config_step_line_ids
 
         config_subproducts = cfg_step_lines.mapped(
-            'config_subproduct_line_id.subproduct_id').filtered(
-            lambda x: x.config_ok)
+            "config_subproduct_line_id.subproduct_id"
+        ).filtered(lambda x: x.config_ok)
 
-        substeps = config_subproducts.mapped('config_step_line_ids').sorted()
+        substeps = config_subproducts.mapped("config_step_line_ids").sorted()
 
         return substeps
 
@@ -51,11 +48,10 @@ class ProductConfigSession(models.Model):
                           current configuration
         :returns: recordset of accesible configuration steps
         """
-        res = super(ProductConfigSession, self).get_open_step_lines(
-            value_ids=value_ids
-        )
+        res = super(ProductConfigSession, self).get_open_step_lines(value_ids=value_ids)
         subproduct_steps = self.product_tmpl_id.config_step_line_ids.filtered(
-            lambda x: x.config_subproduct_line_id)
+            lambda x: x.config_subproduct_line_id
+        )
         open_step_lines = res | subproduct_steps
         return open_step_lines.sorted()
 
@@ -73,23 +69,21 @@ class ProductConfigSession(models.Model):
         if not parent_session or not steps:
             return steps
 
-        cfg_step_line_obj = self.env['product.config.step.line']
+        cfg_step_line_obj = self.env["product.config.step.line"]
 
         # TODO: Move step related methods to sesssion object
 
         # Todo find a better way to identify the model than through context
 
-        next_step = steps.get('next_step') or cfg_step_line_obj
-        prev_step = steps.get('prev_step') or cfg_step_line_obj
+        next_step = steps.get("next_step") or cfg_step_line_obj
+        prev_step = steps.get("prev_step") or cfg_step_line_obj
 
-        parent_draft_session = parent_session.filtered(
-            lambda x: x.state == 'draft'
-        )
+        parent_draft_session = parent_session.filtered(lambda x: x.state == "draft")
 
         # If we have reached the end of a subsession configuration
         if not next_step:
             # Get the first parent / grandparent in draft state
-            while parent_draft_session.state != 'draft':
+            while parent_draft_session.state != "draft":
                 parent_draft_session = parent_draft_session.parent_id
 
             # Get all the open steps
@@ -103,13 +97,13 @@ class ProductConfigSession(models.Model):
                 active_step = cfg_step_line_obj
 
             if active_step:
-                index = [l for l in open_steps.sorted()].index(active_step)
+                index = [line for line in open_steps.sorted()].index(active_step)
                 try:
-                    steps['next_step'] = open_steps[index + 1]
+                    steps["next_step"] = open_steps[index + 1]
                 except Exception:
-                    steps['next_step'] = next_step
+                    steps["next_step"] = next_step
 
-        if not prev_step or prev_step == 'select':
+        if not prev_step or prev_step == "select":
             # TODO: Make this step recursive so it checks all the parents
             open_steps = parent_session.get_open_step_lines()
             # TODO: This will fail with more steps that have the same subprod
@@ -117,63 +111,59 @@ class ProductConfigSession(models.Model):
                 lambda l: l.config_subproduct_line_id.subproduct_id == self
             )
             if subproduct_step:
-                index = [l for l in open_steps.sorted()].index(subproduct_step)
+                index = [line for line in open_steps.sorted()].index(subproduct_step)
                 try:
-                    steps['prev_step'] = open_steps[index - 1]
+                    steps["prev_step"] = open_steps[index - 1]
                 except Exception:
-                    steps['prev_step'] = prev_step
+                    steps["prev_step"] = prev_step
 
         return steps
 
 
 class ProductConfigSubproductLine(models.Model):
-    _name = 'product.config.subproduct.line'
-    _rec_name = 'subproduct_id'
+    _name = "product.config.subproduct.line"
+    _rec_name = "subproduct_id"
 
     product_tmpl_id = fields.Many2one(
-        comodel_name='product.template',
-        string='Product Template',
+        comodel_name="product.template",
+        string="Product Template",
         required=True,
-        ondelete='cascade',
+        ondelete="cascade",
     )
     subproduct_id = fields.Many2one(
-        comodel_name='product.template',
-        string='Product',
-        ondelete='restrict',
+        comodel_name="product.template",
+        string="Product",
+        ondelete="restrict",
         required=True,
-        context="{'default_master_template': False, "
-                "'default_config_ok': True}",
-        help='Subproduct included in master product',
+        context="{'default_master_template': False, " "'default_config_ok': True}",
+        help="Subproduct included in master product",
     )
     multi = fields.Boolean(
-        string='Multi',
-        help='Allow multiple configurations for this subproduct?'
+        string="Multi", help="Allow multiple configurations for this subproduct?"
     )
     required = fields.Boolean(
-        string='Required',
-        help='Product mandatory for configuring master product',
+        string="Required", help="Product mandatory for configuring master product",
     )
 
-    @api.constrains('subproduct', 'product_tmpl')
+    @api.constrains("subproduct", "product_tmpl")
     def _check_subproduct(self):
         self.ensure_one()
         if self.product_tmpl == self.subproduct:
             raise ValidationError(
-                _('Master template cannot assign itself as a subproduct')
+                _("Master template cannot assign itself as a subproduct")
             )
 
 
 class ProductConfigStepLine(models.Model):
-    _inherit = 'product.config.step.line'
+    _inherit = "product.config.step.line"
 
-    @api.multi
-    @api.onchange('config_subproduct_line_id')
+    @api.onchange("config_subproduct_line_id")
     def onchange_subproduct_line(self):
         for line in self.filtered(lambda x: x.config_subproduct_line_id):
             line.attribue_line_ids = None
 
     config_subproduct_line_id = fields.Many2one(
-        comodel_name='product.config.subproduct.line',
-        help='Subproduct line defined on the template',
-        string='Subproduct Line'
+        comodel_name="product.config.subproduct.line",
+        help="Subproduct line defined on the template",
+        string="Subproduct Line",
     )
